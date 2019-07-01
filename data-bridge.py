@@ -18,7 +18,7 @@ from pytz import timezone
 import pytz
 import pyodbc
 
-## VERSION 0.1.0 BETA
+## VERSION 0.1.1 BETA
 # Data Bridge BETA. Limited Support. 
 conf={}
 log_paths={}
