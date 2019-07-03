@@ -233,7 +233,7 @@ def process_mongo(item):
 			if log_paths.get("iterate_row_format", None) is not None:
 				log_process_if_exists(" Custom log: "+log_paths[process_log_key]["iterate_row_format"].format_map(item))
 	except Exception as e:
-		log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+". Exception: "+str(e), error_log_key)
+		log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+".\nException: "+str(e), error_log_key)
 		error_count = error_count + 1
 
 
@@ -261,7 +261,12 @@ def append_variables(mongo_doc, src_dict):
 				# If string, then v could be a path. Parse it.
 				if isinstance(v, str):
 					## Used in Mongo Only. This indicates to system to match exact object. 
-					if v.startswith("_$"):
+					if v.startswith("_$d:"):
+						date_value = get_child_element(v[4:], src_dict)
+						print(date_value)
+						src_value = datetime.strptime(date_value, tf)
+						print(src_value)
+					elif v.startswith("_$"):
 						src_value = get_child_element(v[2:], src_dict)
 					else:
 						default_data=dict_to_default(src_dict)
@@ -279,6 +284,9 @@ def append_variables(mongo_doc, src_dict):
 def process_csv(item):
 	global dest_conn
 	global conf
+	global row_count
+	global update_count
+	global error_count
 	reserved={
 		"today":datetime.now().strftime("%Y%m%d")
 	}
@@ -292,7 +300,15 @@ def process_csv(item):
 	if 'csvwriter' not in locals():
 		csvwriter=csv.DictWriter(dest_conn, delimiter=',', fieldnames=headers)
 	insert_doc=append_variables(query["body"], item)
-	csvwriter.writerow(insert_doc)
+	try:
+		csvwriter.writerow(insert_doc)
+		update_count = update_count + 1
+		if log_paths.get(process_log_key, None) is not None:
+			if log_paths.get("iterate_row_format", None) is not None:
+				log_process_if_exists(" Custom log: "+log_paths[process_log_key]["iterate_row_format"].format_map(item))
+	except Exception as e:
+		log_process_if_exists("Error occured when processing CSV row: "+str(row_count)+".\nException: "+str(e))
+		error_count = error_count + 1
 
 def process_api(item):
 	print(item)
@@ -313,7 +329,6 @@ def dict_to_default(dict_data):
 		if isinstance(v, dict):
 			new_dict[k]=dict_to_default(v)
 	return new_dict
-
 
 def create_query(create_options):
 	# start with existence
@@ -369,6 +384,8 @@ def log_process_if_exists(message="", log_key="process"):
 	global log_paths
 	if log_paths.get(log_key, None) is not None:
 		log_process(log_paths[log_key]["path"], message)
+	else:
+		print(log_key + ": "+message)
 ## Logging
 def log_process(file_path="", message=""):
 	with open(file_path, "a+") as data_log:
