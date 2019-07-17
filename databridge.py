@@ -245,7 +245,7 @@ def process_mongo_row(item):
 	# result=db[query["collection"]].find_one(find_doc)
 
 	try:
-		bulkOps.append(UpdateOne(find_doc, update_doc))
+		bulkOps.append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else False))
 		# update=db[query["collection"]].update_one(find_doc, update_doc, upsert=args.upsert if args.upsert is not None else False)
 		# log_process_if_exists(" Found "+str(update.matched_count)+" item and updated "+str(update.modified_count)+" item. ")
 		# update_count = update_count + update.modified_count
