@@ -7,6 +7,7 @@ import json
 import time
 import csv
 from math import ceil
+from math import floor
 import sys
 import argparse
 from argparse import RawTextHelpFormatter
@@ -30,6 +31,7 @@ error_count=0
 dest_conn=None
 sql_table_flag=0
 bulkOps=[]
+batch_size = 3000
 
 tf='%Y-%m-%d'
 df='%Y-%m-%d %H:%M:%s'
@@ -243,9 +245,16 @@ def process_mongo_row(item):
 		update_doc["$set"]["update_date"] = datetime.utcnow()
 	## Insert
 	# result=db[query["collection"]].find_one(find_doc)
-
+	bulk_batch_index= floor(row_count / batch_size)
+	if bulk_batch_index >= len(bulkOps):
+		bulkOps.append([])
+		if log_paths.get(process_log_key, None) is not None:
+			log_process_if_exists("Bulk Batch: "+str(bulk_batch_index))
 	try:
-		bulkOps.append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else False))
+		should_upsert = args.upsert if hasattr(args, "upsert") else True
+		print("Upsert: "+str(should_upsert))
+		bulkOps[bulk_batch_index].append(UpdateOne(find_doc, update_doc, upsert=should_upsert))
+		# bulkOps[bulk_batch].append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else True))
 		# update=db[query["collection"]].update_one(find_doc, update_doc, upsert=args.upsert if args.upsert is not None else False)
 		# log_process_if_exists(" Found "+str(update.matched_count)+" item and updated "+str(update.modified_count)+" item. ")
 		# update_count = update_count + update.modified_count
@@ -359,11 +368,13 @@ def process_bulk():
 			dest_conn = MongoClient(host=connection.get("server", "localhost"), port=connection.get("port", 27017))
 		db = dest_conn[connection["database"]]
 		try:
-			updates=db[query["collection"]].bulk_write(bulkOps)
-			bulkMessage = " Bulk write occured:\n  Matched: "+str(updates.matched_count)+"\n  Modified: "+str(updates.modified_count)+"\n  Inserted: "+str(updates.inserted_count)
-			log_process_if_exists(bulkMessage, process_log_key)
-			print(bulkMessage)
-			update_count = updates.matched_count
+			for bulk_batch in bulkOps:
+				print(bulk_batch)
+				updates=db[query["collection"]].bulk_write(bulk_batch)
+				bulkMessage = " Bulk write occured:\n  Matched: "+str(updates.matched_count)+"\n  Modified: "+str(updates.modified_count)+"\n  Upserted: "+str(updates.upserted_count)
+				log_process_if_exists(bulkMessage, process_log_key)
+				print(bulkMessage)
+				update_count = updates.matched_count
 		except Exception as e:
 			log_process_if_exists(" Error occured when running bulk write event. \n  Exception: "+str(e), error_log_key)
 			print(e)
@@ -458,7 +469,7 @@ def log_process(file_path="", message=""):
 			data_log.write(indent+message)
 		except Exception as e:
 			print("Log error occured")
-			print(e);
+			print(e)
 
 if __name__ == "__main__":
 	global args
