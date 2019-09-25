@@ -29,6 +29,7 @@ row_count=0
 update_count=0
 error_count=0
 dest_conn=None
+log_doc={}
 sql_table_flag=0
 bulkOps=[]
 batch_size = 3000
@@ -55,6 +56,7 @@ def import_data():
 def process_profile(profile_path, ops=None):
 	global conf
 	global log_paths
+	global log_doc
 	global args
 	with open(profile_path, 'r', encoding='utf-8') as f:
 		conf=json.load(f)
@@ -74,10 +76,17 @@ def process_profile(profile_path, ops=None):
 	## LOG
 	log_process_if_exists("*******************\nSync started. ", process_log_key)
 	log_process_if_exists(" Source type: "+src_type, process_log_key)
+	log_doc["type"] = "DataBridge"
+	log_doc["src_type"] = src_type
+	log_doc["dest_type"] = dest_type
+	log_doc["start"] = datetime.utcnow() ## for mongoDB
+	log_doc["logs"] = []
+	log_doc["runs"] = []
 
 	if src_type == "CSV": ## defaults to Mongo
 		process_row = get_process(dest_type)
 		src=parse_csv(src_conf["file_path"]) ## List
+		print(src)
 		### DO SOMETHING HERE
 	elif src_type == "API":
 		process_row = get_process(dest_type)
@@ -134,6 +143,10 @@ def iterate_mongo(connection, query, process_func):
 	global update_count
 	global error_count
 	global bulkOps
+	global dest_conn
+	global log_doc
+	global log_paths
+	global conf
 	bulkOps=[]
 	row_count = 0
 	if query.get("find", None) is not None:
@@ -175,6 +188,30 @@ def iterate_mongo(connection, query, process_func):
 	conn.close()
 	et=datetime.now()
 	log_process_if_exists("Sync Complete: \n  Total: "+str(row_count)+"\n  Updated: "+str(update_count)+"\n  Skipped: "+str(error_count)+"\n  Sync Time: "+str(et-st)+"\n*******************")
+	log_doc["end"] = datetime.now()
+	## If DB
+	if log_paths.get(process_log_key, None) is not None:
+		if log_paths[process_log_key].get("db_log", None) is not None:
+			with MongoClient(host=log_paths[process_log_key]["db_log"]["server"], port=log_paths[process_log_key]["db_log"]["port"]) as log_conn:
+				log_db = log_conn[log_paths[process_log_key]["db_log"]["database"]]
+				log_collection = log_db[log_paths[process_log_key]["db_log"]["collection"]]
+				log_collection.insert_one(log_doc)
+
+	## Post scripts if any
+	if conf.get("post_scripts", None) is not None:
+		post_scripts = conf["post_scripts"]
+		for post_script in post_scripts:
+			if post_script.get("type", "MONGO") == "MONGO":
+				with MongoClient(host=post_script["connection"].get("server", "localhost"), port=post_script["connection"].get("port", 27017)) as script_conn:
+					script_db = script_conn[post_script["connection"]["database"]]
+					if post_script.get("query", None) is not None:
+						script_query = post_script["query"]
+						script_collection = script_db[script_query["collection"]]
+						if script_query.get("update", None) is not None: ## it's an update
+							if script_query.get("multi", False) == True:
+								update_doc = script_collection.update_many(script_query["find"], script_query["update"])
+							else:
+								update_doc = script_collection.update_one(script_query["find"], script_query["update"])
 
 def iterate_api(connection, query, process_func):
 	method = connection.get("method", "get")
@@ -229,6 +266,7 @@ def process_mongo_row(item):
 	global row_count
 	global error_count
 	global log_paths
+	global log_doc
 	global bulkOps
 
 	connection = conf["dest"]["connection"]
@@ -254,6 +292,7 @@ def process_mongo_row(item):
 		should_upsert = args.upsert if hasattr(args, "upsert") else True
 		print("Upsert: "+str(should_upsert))
 		bulkOps[bulk_batch_index].append(UpdateOne(find_doc, update_doc, upsert=should_upsert))
+		log_doc["logs"].append(find_doc)
 		# bulkOps[bulk_batch].append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else True))
 		# update=db[query["collection"]].update_one(find_doc, update_doc, upsert=args.upsert if args.upsert is not None else False)
 		# log_process_if_exists(" Found "+str(update.matched_count)+" item and updated "+str(update.modified_count)+" item. ")
@@ -360,6 +399,7 @@ def process_bulk():
 	global bulkOps
 	global dest_conn
 	global update_count
+	global log_doc
 	print("Processing bulk actions")
 	query=conf["dest"]["query"]
 	if conf["dest"].get("type", "MONGO") == "MONGO" and len(bulkOps) > 0:
@@ -372,6 +412,11 @@ def process_bulk():
 				print(bulk_batch)
 				updates=db[query["collection"]].bulk_write(bulk_batch)
 				bulkMessage = " Bulk write occured:\n  Matched: "+str(updates.matched_count)+"\n  Modified: "+str(updates.modified_count)+"\n  Upserted: "+str(updates.upserted_count)
+				log_doc["runs"].append({
+					"found": updates.matched_count,
+					"updated": updates.modified_count,
+					"upserted": updates.upserted_count
+				})
 				log_process_if_exists(bulkMessage, process_log_key)
 				print(bulkMessage)
 				update_count = updates.matched_count
@@ -456,6 +501,7 @@ def merge_args(ops=None):
 
 def log_process_if_exists(message="", log_key="process"):
 	global log_paths
+	global dest_conn
 	if log_paths.get(log_key, None) is not None:
 		log_process(log_paths[log_key]["path"], message)
 	else:
