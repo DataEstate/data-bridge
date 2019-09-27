@@ -290,7 +290,6 @@ def process_mongo_row(item):
 			log_process_if_exists("Bulk Batch: "+str(bulk_batch_index))
 	try:
 		should_upsert = args.upsert if hasattr(args, "upsert") else True
-		print("Upsert: "+str(should_upsert))
 		bulkOps[bulk_batch_index].append(UpdateOne(find_doc, update_doc, upsert=should_upsert))
 		log_doc["logs"].append(find_doc)
 		# bulkOps[bulk_batch].append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else True))
@@ -332,19 +331,19 @@ def append_variables(mongo_doc, src_dict):
 					# Date String. 
 					if v.startswith("_$d:"): ##Date from date string
 						date_value = get_child_element(v[4:], src_dict)
-						print(date_value)
+						#print(date_value)
 						src_value = datetime.strptime(date_value, tf)
-						print(src_value)
+						#print(src_value)
 					elif v.startswith("_$t:"): #Date from timestamp string
 						date_value = get_child_element(v[4:], src_dict)
-						print(date_value)
+						#print(date_value)
 						src_value = datetime.fromtimestamp(date_value)
-						print(src_value)
+						#print(src_value)
 					elif v.startswith("_$i:"): #integer from string. 
 						date_value = get_child_element(v[4:], src_dict)
-						print(date_value)
+						#print(date_value)
 						src_value = int(date_value)
-						print(src_value)
+						#print(src_value)
 					elif v.startswith("_$"):
 						src_value = get_child_element(v[2:], src_dict)
 					else:
