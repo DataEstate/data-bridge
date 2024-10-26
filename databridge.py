@@ -1,6 +1,5 @@
 # NATIVE Modules
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, UTC, timedelta
 from collections import OrderedDict
 from collections import defaultdict
 import json
@@ -36,7 +35,7 @@ batch_size = 3000
 
 tf='%Y-%m-%d'
 df='%Y-%m-%d %H:%M:%s'
-st=datetime.now()
+st=datetime.now(UTC)
 
 process_log_key="process"
 error_log_key="error"
@@ -64,7 +63,7 @@ def process_profile(profile_path, ops=None):
 		if conf.get("logs", None) is not None:
 			for (key,logConf) in conf["logs"].items():
 				if logConf.get("path", None) is not None:
-					logConf["path"] = logConf["path"]+"-"+datetime.now().strftime('%Y%m%d')+'.log'
+					logConf["path"] = logConf["path"]+"-"+datetime.now(UTC).strftime('%Y%m%d')+'.log'
 					# Only add if it has path.
 					log_paths[key] = logConf
 	merge_args(ops)
@@ -79,7 +78,7 @@ def process_profile(profile_path, ops=None):
 	log_doc["type"] = "DataBridge"
 	log_doc["src_type"] = src_type
 	log_doc["dest_type"] = dest_type
-	log_doc["start"] = datetime.utcnow() ## for mongoDB
+	log_doc["start"] = datetime.now(UTC) ## for mongoDB
 	log_doc["logs"] = []
 	log_doc["runs"] = []
 
@@ -130,7 +129,7 @@ def iterate_mssql(connection, query, process_func):
 		if dest_conn is not None:
 			dest_conn.close()
 			print("Connection closed")
-		et=datetime.now()
+		et=datetime.now(UTC)
 		log_process_if_exists("Sync Complete: \n  Total: "+str(row_count)+"\n  Updated: "+str(update_count)+"\n  Skipped: "+str(error_count)+"\n  Sync Time: "+str(et-st)+"\n*******************")
 
 def iterate_mongo(connection, query, process_func):
@@ -185,9 +184,9 @@ def iterate_mongo(connection, query, process_func):
 		dest_conn.close()
 		print("Connection closed")
 	conn.close()
-	et=datetime.now()
+	et=datetime.now(UTC)
 	log_process_if_exists("Sync Complete: \n  Total: "+str(row_count)+"\n  Updated: "+str(update_count)+"\n  Skipped: "+str(error_count)+"\n  Sync Time: "+str(et-st)+"\n*******************")
-	log_doc["end"] = datetime.now()
+	log_doc["end"] = datetime.now(UTC)
 	## If DB
 	if log_paths.get(process_log_key, None) is not None:
 		if log_paths[process_log_key].get("db_log", None) is not None:
@@ -282,7 +281,7 @@ def process_mongo_row(item):
 		if update_doc.get("$set", None) is None:
 			update_doc["$set"] = {}
 		if update_doc.get("$currentDate", None) is None or update_doc["$currentDate"].get("update_date", None) is None:
-			update_doc["$set"]["update_date"] = datetime.utcnow()
+			update_doc["$set"]["update_date"] = datetime.now(UTC)
 		## Insert
 		
 		bulk_batch_index= floor(row_count / batch_size)
@@ -382,7 +381,7 @@ def process_csv_row(item):
 	global update_count
 	global error_count
 	reserved={
-		"today":datetime.now().strftime("%Y%m%d")
+		"today":datetime.now(UTC).strftime("%Y%m%d")
 	}
 	file_path = conf["dest"]["file_path"].format(**reserved)
 	query = conf["dest"]["query"]
@@ -527,7 +526,7 @@ def log_process(file_path="", message=""):
 	with open(file_path, "a+") as data_log:
 		try:
 			indent="    "
-			data_log.write("\n"+datetime.now().strftime(df)+":")
+			data_log.write("\n"+datetime.now(UTC).strftime(df)+":")
 			data_log.write(indent+message)
 		except Exception as e:
 			print("Log error occured")
