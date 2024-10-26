@@ -86,7 +86,6 @@ def process_profile(profile_path, ops=None):
 	if src_type == "CSV": ## defaults to Mongo
 		process_row = get_process(dest_type)
 		src=parse_csv(src_conf["file_path"]) ## List
-		print(src)
 		### DO SOMETHING HERE
 	elif src_type == "API":
 		process_row = get_process(dest_type)
@@ -275,33 +274,50 @@ def process_mongo_row(item):
 	# db = dest_conn[connection["database"]]
 	query=conf["dest"]["query"]
 	find_doc=append_variables(query["find"], item)
-	update_doc=append_variables(query["update"], item)
-	## Always append update time IF current date is not set.
-	if update_doc.get("$set", None) is None:
-		update_doc["$set"] = {}
-	if update_doc.get("$currentDate", None) is None or update_doc["$currentDate"].get("update_date", None) is None:
-		update_doc["$set"]["update_date"] = datetime.utcnow()
-	## Insert
-	# result=db[query["collection"]].find_one(find_doc)
-	bulk_batch_index= floor(row_count / batch_size)
-	if bulk_batch_index >= len(bulkOps):
+
+	## Determine whether this is an update or insert
+	if query.get("update", None) is not None:
+		update_doc=append_variables(query["update"], item)
+		## Always append update time IF current date is not set. 
+		if update_doc.get("$set", None) is None:
+			update_doc["$set"] = {}
+		if update_doc.get("$currentDate", None) is None or update_doc["$currentDate"].get("update_date", None) is None:
+			update_doc["$set"]["update_date"] = datetime.utcnow()
+		## Insert
+		
+		bulk_batch_index= floor(row_count / batch_size)
+		## If current batch at bulk_batch_index is empty, initialise a new list
+		if bulk_batch_index >= len(bulkOps):
+			bulkOps.append([])
+			if log_paths.get(process_log_key, None) is not None:
+				log_process_if_exists("Bulk Batch: "+str(bulk_batch_index))
+		try:
+			should_upsert = args.upsert if hasattr(args, "upsert") else True
+			bulkOps[bulk_batch_index].append(UpdateOne(find_doc, update_doc, upsert=should_upsert))
+			log_doc["logs"].append(find_doc)
+			# bulkOps[bulk_batch].append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else True))
+			# update=db[query["collection"]].update_one(find_doc, update_doc, upsert=args.upsert if args.upsert is not None else False)
+			# log_process_if_exists(" Found "+str(update.matched_count)+" item and updated "+str(update.modified_count)+" item. ")
+			# update_count = update_count + update.modified_count
+			if log_paths.get(process_log_key, None) is not None:
+				if log_paths[process_log_key].get("iterate_row_format", None) is not None:
+					log_process_if_exists(" Custom log: "+log_paths[process_log_key]["iterate_row_format"].format_map(item))
+		except Exception as e:
+			log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+".\nException: "+str(e), error_log_key)
+			error_count = error_count + 1
+	## If no "update command", insert directly
+	else:
+		bulk_batch_index= floor(row_count / batch_size)
+		## If current batch at bulk_batch_index is empty, initialise a new list
 		bulkOps.append([])
-		if log_paths.get(process_log_key, None) is not None:
-			log_process_if_exists("Bulk Batch: "+str(bulk_batch_index))
-	try:
-		should_upsert = args.upsert if hasattr(args, "upsert") else True
-		bulkOps[bulk_batch_index].append(UpdateOne(find_doc, update_doc, upsert=should_upsert))
-		log_doc["logs"].append(find_doc)
-		# bulkOps[bulk_batch].append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else True))
-		# update=db[query["collection"]].update_one(find_doc, update_doc, upsert=args.upsert if args.upsert is not None else False)
-		# log_process_if_exists(" Found "+str(update.matched_count)+" item and updated "+str(update.modified_count)+" item. ")
-		# update_count = update_count + update.modified_count
+		# try:
+		bulkOps[bulk_batch_index].append(InsertOne(item))
 		if log_paths.get(process_log_key, None) is not None:
 			if log_paths[process_log_key].get("iterate_row_format", None) is not None:
 				log_process_if_exists(" Custom log: "+log_paths[process_log_key]["iterate_row_format"].format_map(item))
-	except Exception as e:
-		log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+".\nException: "+str(e), error_log_key)
-		error_count = error_count + 1
+		# except Exception as e:
+		# 	log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+".\nException: "+str(e), error_log_key)
+		# 	error_count = error_count + 1
 
 # For MongoDB only.
 def append_variables(mongo_doc, src_dict):
@@ -409,9 +425,8 @@ def process_bulk():
 		db = dest_conn[connection["database"]]
 		try:
 			for bulk_batch in bulkOps:
-				print(bulk_batch)
 				updates=db[query["collection"]].bulk_write(bulk_batch)
-				bulkMessage = " Bulk write occured:\n  Matched: "+str(updates.matched_count)+"\n  Modified: "+str(updates.modified_count)+"\n  Upserted: "+str(updates.upserted_count)
+				bulkMessage = " Bulk write occured:\n Inserted: "+str(updates.inserted_count)+"\n Matched: "+str(updates.matched_count)+"\n  Modified: "+str(updates.modified_count)+"\n  Upserted: "+str(updates.upserted_count)
 				log_doc["runs"].append({
 					"found": updates.matched_count,
 					"updated": updates.modified_count,
@@ -422,8 +437,9 @@ def process_bulk():
 				update_count = updates.matched_count
 		except Exception as e:
 			log_process_if_exists(" Error occured when running bulk write event. \n  Exception: "+str(e), error_log_key)
+			print("Error occured")
 			print(e)
-			print(bulkOps[:10])
+			#print(bulkOps[:10])
 			traceback.print_exc()
 ## Helpers
 def get_child_element(json_path="", parent_element={}):
@@ -536,3 +552,4 @@ if __name__ == "__main__":
 	args = ap.parse_args()
 	# ops = vars(args) ## Set is as dicionary
 	import_data()
+
