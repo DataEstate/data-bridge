@@ -22,7 +22,7 @@ import pyodbc
 import traceback
 
 ## VERSION 0.2.0 BETA
-# Data Bridge BETA. Limited Support. 
+# Data Bridge BETA. Limited Support.
 conf={}
 log_paths={}
 row_count=0
@@ -41,11 +41,11 @@ st=datetime.now()
 process_log_key="process"
 error_log_key="error"
 ## MAIN PROCESS ##
-# Basic flow of this application is by running the iterate_{data_source} based on the profile, 
+# Basic flow of this application is by running the iterate_{data_source} based on the profile,
 # The iterate_{datasource} functions will query the datasource, get the result, iterate through
-# each row/item and then call the process_{datasource} functions to do the insert. 
-# 
-# There is currently no support for bulk run methods. 
+# each row/item and then call the process_{datasource} functions to do the insert.
+#
+# There is currently no support for bulk run methods.
 
 def import_data():
 	global conf
@@ -65,7 +65,7 @@ def process_profile(profile_path, ops=None):
 			for (key,logConf) in conf["logs"].items():
 				if logConf.get("path", None) is not None:
 					logConf["path"] = logConf["path"]+"-"+datetime.now().strftime('%Y%m%d')+'.log'
-					# Only add if it has path. 
+					# Only add if it has path.
 					log_paths[key] = logConf
 	merge_args(ops)
 	## switch for src
@@ -126,7 +126,7 @@ def iterate_mssql(connection, query, process_func):
 			process_func(item)
 			row=rows.fetchone()
 		cursor.close()
-		## SQL count is done afterwards. 
+		## SQL count is done afterwards.
 		log_process_if_exists(" Source row processed (SQL): "+str(row_count))
 		if dest_conn is not None:
 			dest_conn.close()
@@ -138,7 +138,7 @@ def iterate_mongo(connection, query, process_func):
 	conn = MongoClient(host=connection.get("server", "localhost"), port=connection.get("port", 27017))
 	db = conn[connection["database"]]
 	collection=db[query["collection"]]
-	## Use find if exists. When aggregating, make sure find is not set. 
+	## Use find if exists. When aggregating, make sure find is not set.
 	global row_count
 	global update_count
 	global error_count
@@ -161,7 +161,7 @@ def iterate_mongo(connection, query, process_func):
 
 	elif query.get("aggregate", None) is not None:
 		pipeline = query["aggregate"]
-		# check if there're any external variables, if so. use append variables to add them. 
+		# check if there're any external variables, if so. use append variables to add them.
 		if args.srcVariables is not None:
 			externalVars=json.loads(args.srcVariables)
 		#	print(externalVars)
@@ -178,7 +178,7 @@ def iterate_mongo(connection, query, process_func):
 		row_count = row_count + 1
 		item = OrderedDict(row)
 		process_func(item)
-	## Check bulk options. If there are bulk options to perform. execute. 
+	## Check bulk options. If there are bulk options to perform. execute.
 	process_bulk()
 
 	log_process_if_exists(" Processed count: "+str(row_count))
@@ -276,7 +276,7 @@ def process_mongo_row(item):
 	query=conf["dest"]["query"]
 	find_doc=append_variables(query["find"], item)
 	update_doc=append_variables(query["update"], item)
-	## Always append update time IF current date is not set. 
+	## Always append update time IF current date is not set.
 	if update_doc.get("$set", None) is None:
 		update_doc["$set"] = {}
 	if update_doc.get("$currentDate", None) is None or update_doc["$currentDate"].get("update_date", None) is None:
@@ -303,7 +303,7 @@ def process_mongo_row(item):
 		log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+".\nException: "+str(e), error_log_key)
 		error_count = error_count + 1
 
-# For MongoDB only. 
+# For MongoDB only.
 def append_variables(mongo_doc, src_dict):
 	global args
 	updated_doc = {}
@@ -311,7 +311,7 @@ def append_variables(mongo_doc, src_dict):
 	if isinstance(mongo_doc, list):
 		updated_doc = []
 		for v in mongo_doc:
-			# If v has value or process is to include blanks, then insert, else ignore. 
+			# If v has value or process is to include blanks, then insert, else ignore.
 			if v or not args.ignoreBlank:
 				if isinstance(v, str):
 					default_data=dict_to_default(src_dict)
@@ -323,12 +323,12 @@ def append_variables(mongo_doc, src_dict):
 	# else dictionary
 	else:
 		for (key,v) in mongo_doc.items():
-			# If v has value or process is to include blanks, then insert, else ignore. 
+			# If v has value or process is to include blanks, then insert, else ignore.
 			if v or not args.ignoreBlank:
 				# If string, then v could be a path. Parse it.
 				if isinstance(v, str):
-					## Used in Mongo Only. This indicates to system to match exact object. 
-					# Date String. 
+					## Used in Mongo Only. This indicates to system to match exact object.
+					# Date String.
 					if v.startswith("_$d:"): ##Date from date string
 						date_value = get_child_element(v[4:], src_dict)
 						#print(date_value)
@@ -339,7 +339,7 @@ def append_variables(mongo_doc, src_dict):
 						#print(date_value)
 						src_value = datetime.fromtimestamp(date_value)
 						#print(src_value)
-					elif v.startswith("_$i:"): #integer from string. 
+					elif v.startswith("_$i:"): #integer from string.
 						date_value = get_child_element(v[4:], src_dict)
 						#print(date_value)
 						src_value = int(date_value)
@@ -400,6 +400,7 @@ def process_bulk():
 	global update_count
 	global log_doc
 	print("Processing bulk actions")
+	print("Bulk Ops length: " + str(len(bulkOps)))
 	query=conf["dest"]["query"]
 	if conf["dest"].get("type", "MONGO") == "MONGO" and len(bulkOps) > 0:
 		connection = conf["dest"]["connection"]
@@ -458,7 +459,7 @@ def create_query(create_options):
 	query_list.append("CREATE TABLE ")
 	query_list.append(table_name)
 	query_list.append(" (")
-	
+
 	for (field,value) in create_options["properties"].items():
 		tf_string = [field, value["type"]]
 		if value.get("identity", None) is not None:
