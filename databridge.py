@@ -1,6 +1,5 @@
 # NATIVE Modules
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, UTC, timedelta
 from collections import OrderedDict
 from collections import defaultdict
 import json
@@ -22,7 +21,7 @@ import pyodbc
 import traceback
 
 ## VERSION 0.2.0 BETA
-# Data Bridge BETA. Limited Support. 
+# Data Bridge BETA. Limited Support.
 conf={}
 log_paths={}
 row_count=0
@@ -36,16 +35,16 @@ batch_size = 3000
 
 tf='%Y-%m-%d'
 df='%Y-%m-%d %H:%M:%s'
-st=datetime.now()
+st=datetime.now(UTC)
 
 process_log_key="process"
 error_log_key="error"
 ## MAIN PROCESS ##
-# Basic flow of this application is by running the iterate_{data_source} based on the profile, 
+# Basic flow of this application is by running the iterate_{data_source} based on the profile,
 # The iterate_{datasource} functions will query the datasource, get the result, iterate through
-# each row/item and then call the process_{datasource} functions to do the insert. 
-# 
-# There is currently no support for bulk run methods. 
+# each row/item and then call the process_{datasource} functions to do the insert.
+#
+# There is currently no support for bulk run methods.
 
 def import_data():
 	global conf
@@ -64,8 +63,8 @@ def process_profile(profile_path, ops=None):
 		if conf.get("logs", None) is not None:
 			for (key,logConf) in conf["logs"].items():
 				if logConf.get("path", None) is not None:
-					logConf["path"] = logConf["path"]+"-"+datetime.now().strftime('%Y%m%d')+'.log'
-					# Only add if it has path. 
+					logConf["path"] = logConf["path"]+"-"+datetime.now(UTC).strftime('%Y%m%d')+'.log'
+					# Only add if it has path.
 					log_paths[key] = logConf
 	merge_args(ops)
 	## switch for src
@@ -79,14 +78,13 @@ def process_profile(profile_path, ops=None):
 	log_doc["type"] = "DataBridge"
 	log_doc["src_type"] = src_type
 	log_doc["dest_type"] = dest_type
-	log_doc["start"] = datetime.utcnow() ## for mongoDB
+	log_doc["start"] = datetime.now(UTC) ## for mongoDB
 	log_doc["logs"] = []
 	log_doc["runs"] = []
 
 	if src_type == "CSV": ## defaults to Mongo
 		process_row = get_process(dest_type)
 		src=parse_csv(src_conf["file_path"]) ## List
-		print(src)
 		### DO SOMETHING HERE
 	elif src_type == "API":
 		process_row = get_process(dest_type)
@@ -126,19 +124,19 @@ def iterate_mssql(connection, query, process_func):
 			process_func(item)
 			row=rows.fetchone()
 		cursor.close()
-		## SQL count is done afterwards. 
+		## SQL count is done afterwards.
 		log_process_if_exists(" Source row processed (SQL): "+str(row_count))
 		if dest_conn is not None:
 			dest_conn.close()
 			print("Connection closed")
-		et=datetime.now()
+		et=datetime.now(UTC)
 		log_process_if_exists("Sync Complete: \n  Total: "+str(row_count)+"\n  Updated: "+str(update_count)+"\n  Skipped: "+str(error_count)+"\n  Sync Time: "+str(et-st)+"\n*******************")
 
 def iterate_mongo(connection, query, process_func):
 	conn = MongoClient(host=connection.get("server", "localhost"), port=connection.get("port", 27017))
 	db = conn[connection["database"]]
 	collection=db[query["collection"]]
-	## Use find if exists. When aggregating, make sure find is not set. 
+	## Use find if exists. When aggregating, make sure find is not set.
 	global row_count
 	global update_count
 	global error_count
@@ -161,7 +159,7 @@ def iterate_mongo(connection, query, process_func):
 
 	elif query.get("aggregate", None) is not None:
 		pipeline = query["aggregate"]
-		# check if there're any external variables, if so. use append variables to add them. 
+		# check if there're any external variables, if so. use append variables to add them.
 		if args.srcVariables is not None:
 			externalVars=json.loads(args.srcVariables)
 		#	print(externalVars)
@@ -178,7 +176,7 @@ def iterate_mongo(connection, query, process_func):
 		row_count = row_count + 1
 		item = OrderedDict(row)
 		process_func(item)
-	## Check bulk options. If there are bulk options to perform. execute. 
+	## Check bulk options. If there are bulk options to perform. execute.
 	process_bulk()
 
 	log_process_if_exists(" Processed count: "+str(row_count))
@@ -186,9 +184,9 @@ def iterate_mongo(connection, query, process_func):
 		dest_conn.close()
 		print("Connection closed")
 	conn.close()
-	et=datetime.now()
+	et=datetime.now(UTC)
 	log_process_if_exists("Sync Complete: \n  Total: "+str(row_count)+"\n  Updated: "+str(update_count)+"\n  Skipped: "+str(error_count)+"\n  Sync Time: "+str(et-st)+"\n*******************")
-	log_doc["end"] = datetime.now()
+	log_doc["end"] = datetime.now(UTC)
 	## If DB
 	if log_paths.get(process_log_key, None) is not None:
 		if log_paths[process_log_key].get("db_log", None) is not None:
@@ -275,35 +273,52 @@ def process_mongo_row(item):
 	# db = dest_conn[connection["database"]]
 	query=conf["dest"]["query"]
 	find_doc=append_variables(query["find"], item)
-	update_doc=append_variables(query["update"], item)
-	## Always append update time IF current date is not set. 
-	if update_doc.get("$set", None) is None:
-		update_doc["$set"] = {}
-	if update_doc.get("$currentDate", None) is None or update_doc["$currentDate"].get("update_date", None) is None:
-		update_doc["$set"]["update_date"] = datetime.utcnow()
-	## Insert
-	# result=db[query["collection"]].find_one(find_doc)
-	bulk_batch_index= floor(row_count / batch_size)
-	if bulk_batch_index >= len(bulkOps):
+
+	## Determine whether this is an update or insert
+	if query.get("update", None) is not None:
+		update_doc=append_variables(query["update"], item)
+		## Always append update time IF current date is not set. 
+		if update_doc.get("$set", None) is None:
+			update_doc["$set"] = {}
+		if update_doc.get("$currentDate", None) is None or update_doc["$currentDate"].get("update_date", None) is None:
+			update_doc["$set"]["update_date"] = datetime.now(UTC)
+		## Insert
+		
+		bulk_batch_index= floor(row_count / batch_size)
+		## If current batch at bulk_batch_index is empty, initialise a new list
+		if bulk_batch_index >= len(bulkOps):
+			bulkOps.append([])
+			if log_paths.get(process_log_key, None) is not None:
+				log_process_if_exists("Bulk Batch: "+str(bulk_batch_index))
+		try:
+			should_upsert = args.upsert if hasattr(args, "upsert") else True
+			bulkOps[bulk_batch_index].append(UpdateOne(find_doc, update_doc, upsert=should_upsert))
+			log_doc["logs"].append(find_doc)
+			# bulkOps[bulk_batch].append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else True))
+			# update=db[query["collection"]].update_one(find_doc, update_doc, upsert=args.upsert if args.upsert is not None else False)
+			# log_process_if_exists(" Found "+str(update.matched_count)+" item and updated "+str(update.modified_count)+" item. ")
+			# update_count = update_count + update.modified_count
+			if log_paths.get(process_log_key, None) is not None:
+				if log_paths[process_log_key].get("iterate_row_format", None) is not None:
+					log_process_if_exists(" Custom log: "+log_paths[process_log_key]["iterate_row_format"].format_map(item))
+		except Exception as e:
+			log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+".\nException: "+str(e), error_log_key)
+			error_count = error_count + 1
+	## If no "update command", insert directly
+	else:
+		bulk_batch_index= floor(row_count / batch_size)
+		## If current batch at bulk_batch_index is empty, initialise a new list
 		bulkOps.append([])
-		if log_paths.get(process_log_key, None) is not None:
-			log_process_if_exists("Bulk Batch: "+str(bulk_batch_index))
-	try:
-		should_upsert = args.upsert if hasattr(args, "upsert") else True
-		bulkOps[bulk_batch_index].append(UpdateOne(find_doc, update_doc, upsert=should_upsert))
-		log_doc["logs"].append(find_doc)
-		# bulkOps[bulk_batch].append(UpdateOne(find_doc, update_doc, upsert=args.upsert if hasattr(args, "upsert") else True))
-		# update=db[query["collection"]].update_one(find_doc, update_doc, upsert=args.upsert if args.upsert is not None else False)
-		# log_process_if_exists(" Found "+str(update.matched_count)+" item and updated "+str(update.modified_count)+" item. ")
-		# update_count = update_count + update.modified_count
+		# try:
+		bulkOps[bulk_batch_index].append(InsertOne(item))
 		if log_paths.get(process_log_key, None) is not None:
 			if log_paths[process_log_key].get("iterate_row_format", None) is not None:
 				log_process_if_exists(" Custom log: "+log_paths[process_log_key]["iterate_row_format"].format_map(item))
-	except Exception as e:
-		log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+".\nException: "+str(e), error_log_key)
-		error_count = error_count + 1
+		# except Exception as e:
+		# 	log_process_if_exists("Error occured when processing Mongo row: "+str(row_count)+".\nException: "+str(e), error_log_key)
+		# 	error_count = error_count + 1
 
-# For MongoDB only. 
+# For MongoDB only.
 def append_variables(mongo_doc, src_dict):
 	global args
 	updated_doc = {}
@@ -311,7 +326,7 @@ def append_variables(mongo_doc, src_dict):
 	if isinstance(mongo_doc, list):
 		updated_doc = []
 		for v in mongo_doc:
-			# If v has value or process is to include blanks, then insert, else ignore. 
+			# If v has value or process is to include blanks, then insert, else ignore.
 			if v or not args.ignoreBlank:
 				if isinstance(v, str):
 					default_data=dict_to_default(src_dict)
@@ -323,12 +338,12 @@ def append_variables(mongo_doc, src_dict):
 	# else dictionary
 	else:
 		for (key,v) in mongo_doc.items():
-			# If v has value or process is to include blanks, then insert, else ignore. 
+			# If v has value or process is to include blanks, then insert, else ignore.
 			if v or not args.ignoreBlank:
 				# If string, then v could be a path. Parse it.
 				if isinstance(v, str):
-					## Used in Mongo Only. This indicates to system to match exact object. 
-					# Date String. 
+					## Used in Mongo Only. This indicates to system to match exact object.
+					# Date String.
 					if v.startswith("_$d:"): ##Date from date string
 						date_value = get_child_element(v[4:], src_dict)
 						#print(date_value)
@@ -339,7 +354,7 @@ def append_variables(mongo_doc, src_dict):
 						#print(date_value)
 						src_value = datetime.fromtimestamp(date_value)
 						#print(src_value)
-					elif v.startswith("_$i:"): #integer from string. 
+					elif v.startswith("_$i:"): #integer from string.
 						date_value = get_child_element(v[4:], src_dict)
 						#print(date_value)
 						src_value = int(date_value)
@@ -366,7 +381,7 @@ def process_csv_row(item):
 	global update_count
 	global error_count
 	reserved={
-		"today":datetime.now().strftime("%Y%m%d")
+		"today":datetime.now(UTC).strftime("%Y%m%d")
 	}
 	file_path = conf["dest"]["file_path"].format(**reserved)
 	query = conf["dest"]["query"]
@@ -400,6 +415,7 @@ def process_bulk():
 	global update_count
 	global log_doc
 	print("Processing bulk actions")
+	print("Bulk Ops length: " + str(len(bulkOps)))
 	query=conf["dest"]["query"]
 	if conf["dest"].get("type", "MONGO") == "MONGO" and len(bulkOps) > 0:
 		connection = conf["dest"]["connection"]
@@ -408,9 +424,8 @@ def process_bulk():
 		db = dest_conn[connection["database"]]
 		try:
 			for bulk_batch in bulkOps:
-				print(bulk_batch)
 				updates=db[query["collection"]].bulk_write(bulk_batch)
-				bulkMessage = " Bulk write occured:\n  Matched: "+str(updates.matched_count)+"\n  Modified: "+str(updates.modified_count)+"\n  Upserted: "+str(updates.upserted_count)
+				bulkMessage = " Bulk write occured:\n Inserted: "+str(updates.inserted_count)+"\n Matched: "+str(updates.matched_count)+"\n  Modified: "+str(updates.modified_count)+"\n  Upserted: "+str(updates.upserted_count)
 				log_doc["runs"].append({
 					"found": updates.matched_count,
 					"updated": updates.modified_count,
@@ -421,8 +436,9 @@ def process_bulk():
 				update_count = updates.matched_count
 		except Exception as e:
 			log_process_if_exists(" Error occured when running bulk write event. \n  Exception: "+str(e), error_log_key)
+			print("Error occured")
 			print(e)
-			print(bulkOps[:10])
+			#print(bulkOps[:10])
 			traceback.print_exc()
 ## Helpers
 def get_child_element(json_path="", parent_element={}):
@@ -458,7 +474,7 @@ def create_query(create_options):
 	query_list.append("CREATE TABLE ")
 	query_list.append(table_name)
 	query_list.append(" (")
-	
+
 	for (field,value) in create_options["properties"].items():
 		tf_string = [field, value["type"]]
 		if value.get("identity", None) is not None:
@@ -510,7 +526,7 @@ def log_process(file_path="", message=""):
 	with open(file_path, "a+") as data_log:
 		try:
 			indent="    "
-			data_log.write("\n"+datetime.now().strftime(df)+":")
+			data_log.write("\n"+datetime.now(UTC).strftime(df)+":")
 			data_log.write(indent+message)
 		except Exception as e:
 			print("Log error occured")
@@ -535,3 +551,4 @@ if __name__ == "__main__":
 	args = ap.parse_args()
 	# ops = vars(args) ## Set is as dicionary
 	import_data()
+
