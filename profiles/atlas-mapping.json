@@ -23,7 +23,7 @@
           "$project": {
             "_id": false,
             "id": "$productId",
-            "productNumber": "$$this.productNumber",
+            "productNumber": "$productNumber",
             "status": "$status",
             "category_code": "$productCategoryId",
             "category": {
@@ -1229,6 +1229,7 @@
       "update": {
         "$set": {
           "id": "_$id",
+          "productNumber": "_$productNumber",
           "status": "_$status",
           "category_code": "_$category_code",
           "category": "_$category",
