@@ -1,0 +1,1299 @@
+{
+  "source": {
+    "type": "MONGO",
+    "connection": {
+      "server": "localhost",
+      "port": 27017,
+      "database": "ATAPProd"
+    },
+    "query": {
+      "collection": "_data_import",
+      "aggregate": [
+        {
+          "$match": {
+            "productId": "_$pid"
+          }
+        },
+        {
+          "$project": {
+            "_id": false,
+            "id": "$productId",
+            "status": "$status",
+            "category_code": "$productCategoryId",
+            "category": {
+              "$switch": {
+                "branches": [
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "ACCOMM"
+                      ]
+                    },
+                    "then": "Accommodation"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "ATTRACTION"
+                      ]
+                    },
+                    "then": "Attraction"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "DESTINFO"
+                      ]
+                    },
+                    "then": "Destination Information"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "EVENT"
+                      ]
+                    },
+                    "then": "Event"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "HIRE"
+                      ]
+                    },
+                    "then": "Hire"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "INFO"
+                      ]
+                    },
+                    "then": "Information Services"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "GENSERVICE"
+                      ]
+                    },
+                    "then": "General Services"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "JOURNEY"
+                      ]
+                    },
+                    "then": "Journey"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "RESTAURANT"
+                      ]
+                    },
+                    "then": "Food and Drinks"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "TOUR"
+                      ]
+                    },
+                    "then": "Tour"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$productCategoryId",
+                        "TRANSPORT"
+                      ]
+                    },
+                    "then": "Transport"
+                  }
+                ]
+              }
+            },
+            "name": "$productName",
+            "alternate_names": {
+              "$map": {
+                "input": "$alternateNames",
+                "as": "altName",
+                "in": {
+                  "type": "$$altName.kind",
+                  "name": "$$altName.name"
+                }
+              }
+            },
+            "contributor": "ATDW",
+            "short_description": {
+              "$substrCP": [
+                "$productDescription",
+                0,
+                10
+              ]
+            },
+            "description": "$productDescription",
+            "abn": "$australianBusinessNumber",
+            "suburb": "$suburbName",
+            "city": "$cityName",
+            "locality": {
+              "$ifNull": [
+                "$suburb",
+                "$cityName"
+              ]
+            },
+            "area": "$areaName",
+            "state": "$stateName",
+            "state_code": {
+              "$switch": {
+                "branches": [
+                  {
+                    "case": {
+                      "$eq": [
+                        "$stateName",
+                        "Australian Capital Territory"
+                      ]
+                    },
+                    "then": "ACT"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$stateName",
+                        "New South Wales"
+                      ]
+                    },
+                    "then": "NSW"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$stateName",
+                        "Northern Territory"
+                      ]
+                    },
+                    "then": "NT"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$stateName",
+                        "Queensland"
+                      ]
+                    },
+                    "then": "QLD"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$stateName",
+                        "South Australia"
+                      ]
+                    },
+                    "then": "SA"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$stateName",
+                        "Victoria"
+                      ]
+                    },
+                    "then": "VIC"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$stateName",
+                        "Tasmania"
+                      ]
+                    },
+                    "then": "TAS"
+                  },
+                  {
+                    "case": {
+                      "$eq": [
+                        "$stateName",
+                        "Western Australia"
+                      ]
+                    },
+                    "then": "WA"
+                  }
+                ],
+                "default": ""
+              }
+            },
+            "country": "$countryName",
+            "post_code": {
+              "$arrayElemAt": [
+                "$addresses.addressPostalCode",
+                0
+              ]
+            },
+            "attributes": {
+              "$map": {
+                "input": "$attributes",
+                "as": "at",
+                "in": {
+                  "$switch": {
+                    "branches": [
+                      {
+                        "case": {
+                          "$eq": [
+                            "$$at.attributeId",
+                            "ATAP"
+                          ]
+                        },
+                        "then": {
+                          "id": "QTAB",
+                          "description": "Quality Tourism Accredited Business",
+                          "type": "Accreditation",
+                          "type_id": "ACCREDITN"
+                        }
+                      }
+                    ],
+                    "default": {
+                      "id": "$$at.attributeId",
+                      "description": "$$at.attributeIdDescription",
+                      "type": "$$at.attributeTypeIdDescription",
+                      "type_id": "$$at.attributeTypeId"
+                    }
+                  }
+                }
+              }
+            },
+            "accreditations": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$attributes",
+                    "as": "at",
+                    "cond": {
+                      "$eq": [
+                        "$$at.attributeTypeId",
+                        "ACCREDITN"
+                      ]
+                    }
+                  }
+                },
+                "as": "at",
+                "in": {
+                  "$switch": {
+                    "branches": [
+                      {
+                        "case": {
+                          "$eq": [
+                            "$$at.attributeId",
+                            "ATAP"
+                          ]
+                        },
+                        "then": {
+                          "id": "QTAB",
+                          "description": "Quality Tourism Accredited Business",
+                          "type": "Accreditation",
+                          "type_id": "ACCREDITN"
+                        }
+                      }
+                    ],
+                    "default": {
+                      "id": "$$at.attributeId",
+                      "description": "$$at.attributeIdDescription",
+                      "type": "$$at.attributeTypeIdDescription",
+                      "type_id": "$$at.attributeTypeId"
+                    }
+                  }
+                }
+              }
+            },
+            "atap_accreditations": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$attributes",
+                    "as": "at",
+                    "cond": {
+                      "$and": [
+                        {
+                          "$eq": [
+                            "$$at.attributeTypeId",
+                            "ACCREDITN"
+                          ]
+                        },
+                        {
+                          "$in": [
+                            "$$at.attributeId",
+                            [
+                              "ATAP",
+                              "CRAP",
+                              "DISTASSIST",
+                              "VICNA",
+                              "PAW"
+                            ]
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "as": "at",
+                "in": {
+                  "$switch": {
+                    "branches": [
+                      {
+                        "case": {
+                          "$eq": [
+                            "$$at.attributeId",
+                            "ATAP"
+                          ]
+                        },
+                        "then": {
+                          "id": "QTAB",
+                          "description": "Quality Tourism Accredited Business",
+                          "type": "Accreditation",
+                          "type_id": "ACCREDITN"
+                        }
+                      }
+                    ],
+                    "default": {
+                      "id": "$$at.attributeId",
+                      "description": "$$at.attributeIdDescription",
+                      "type": "$$at.attributeTypeIdDescription",
+                      "type_id": "$$at.attributeTypeId"
+                    }
+                  }
+                }
+              }
+            },
+            "facilities": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$attributes",
+                    "as": "at",
+                    "cond": {
+                      "$eq": [
+                        "$$at.attributeTypeId",
+                        "ENTITY FAC"
+                      ]
+                    }
+                  }
+                },
+                "as": "at",
+                "in": {
+                  "id": "$$at.attributeId",
+                  "description": "$$at.attributeIdDescription",
+                  "type": "$$at.attributeTypeIdDescription",
+                  "type_id": "$$at.attributeTypeId"
+                }
+              }
+            },
+            "tags": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$attributes",
+                    "as": "at",
+                    "cond": {
+                      "$eq": [
+                        "$$at.attributeTypeId",
+                        "TAG"
+                      ]
+                    }
+                  }
+                },
+                "as": "at",
+                "in": "$$at.attributeId"
+              }
+            },
+            "memberships": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$attributes",
+                    "as": "at",
+                    "cond": {
+                      "$eq": [
+                        "$$at.attributeTypeId",
+                        "MEMBERSHIP"
+                      ]
+                    }
+                  }
+                },
+                "as": "at",
+                "in": {
+                  "id": "$$at.attributeId",
+                  "description": "$$at.attributeIdDescription",
+                  "type": "$$at.attributeTypeIdDescription",
+                  "type_id": "$$at.attributeTypeId"
+                }
+              }
+            },
+            "tourismorgs": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$attributes",
+                    "as": "at",
+                    "cond": {
+                      "$eq": [
+                        "$$at.attributeTypeId",
+                        "TOURISMORG"
+                      ]
+                    }
+                  }
+                },
+                "as": "at",
+                "in": {
+                  "id": "$$at.attributeId",
+                  "description": "$$at.attributeIdDescription",
+                  "type": "$$at.attributeTypeIdDescription",
+                  "type_id": "$$at.attributeTypeId"
+                }
+              }
+            },
+            "phones": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$communication",
+                    "as": "com",
+                    "cond": {
+                      "$in": [
+                        "$$com.attributeIdCommunication",
+                        [
+                          "CAMBENQUIR",
+                          "CAPHENQUIR",
+                          "CATLENQUIR",
+                          "CAFXENQUIR"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "as": "ph",
+                "in": {
+                  "number": "$$ph.communicationDetail",
+                  "format": {
+                    "$switch": {
+                      "branches": [
+                        {
+                          "case": {
+                            "$eq": [
+                              "$$ph.attributeIdCommunication",
+                              "CAPHENQUIR"
+                            ]
+                          },
+                          "then": "TEL"
+                        },
+                        {
+                          "case": {
+                            "$eq": [
+                              "$$ph.attributeIdCommunication",
+                              "CAMBENQUIR"
+                            ]
+                          },
+                          "then": "MOBILE"
+                        },
+                        {
+                          "case": {
+                            "$eq": [
+                              "$$ph.attributeIdCommunication",
+                              "CATLENQUIR"
+                            ]
+                          },
+                          "then": "TOLLFREE"
+                        },
+                        {
+                          "case": {
+                            "$eq": [
+                              "$$ph.attributeIdCommunication",
+                              "CAFXENQUIR"
+                            ]
+                          },
+                          "then": "FAX"
+                        }
+                      ]
+                    }
+                  },
+                  "calling_code": "$$ph.communicationIsdCode",
+                  "area_code": "$$ph.communicationAreaCode",
+                  "country_code": "AU",
+                  "country_name": "$countryName"
+                }
+              }
+            },
+            "emails": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$communication",
+                    "as": "com",
+                    "cond": {
+                      "$in": [
+                        "$$com.attributeIdCommunication",
+                        [
+                          "CAEMENQUIR"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "as": "em",
+                "in": {
+                  "address": "$$em.communicationDetail"
+                }
+              }
+            },
+            "urls": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$communication",
+                    "as": "com",
+                    "cond": {
+                      "$in": [
+                        "$$com.attributeIdCommunication",
+                        [
+                          "CAURENQUIR"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "as": "ur",
+                "in": {
+                  "address": "$$ur.communicationDetail"
+                }
+              }
+            },
+            "hero_image": {
+              "$arrayElemAt": [
+                {
+                  "$map": {
+                    "input": {
+                      "$filter": {
+                        "input": "$multimedia",
+                        "as": "mm",
+                        "cond": {
+                          "$eq": [
+                            "$$mm.attributeIdMultimediaContent",
+                            "IMAGE"
+                          ]
+                        }
+                      }
+                    },
+                    "as": "hero",
+                    "in": {
+                      "id": "$$hero.id",
+                      "path": "$$hero.serverPath",
+                      "dimension": "$$hero.attributeIdSizeOrientation",
+                      "orientation": {
+                        "$switch": {
+                          "branches": [
+                            {
+                              "case": {
+                                "$in": [
+                                  "$$hero.attributeIdSizeOrientation",
+                                  [
+                                    "4X3",
+                                    "16X9"
+                                  ]
+                                ]
+                              },
+                              "then": "LANDSCAPE"
+                            }
+                          ],
+                          "default": ""
+                        }
+                      },
+                      "width": "$$hero.width",
+                      "height": "$$hero.height",
+                      "alt": "$$hero.altText",
+                      "caption": "$$hero.caption",
+                      "author": "$$hero.photographer",
+                      "copyright": "$$hero.copyright",
+                      "atdw_sq_number": "$$hero.sequenceNumber",
+                      "sizes": {
+                        "thumb": {
+                          "path": {
+                            "$concat": [
+                              "$$hero.serverPath",
+                              "?w=100"
+                            ]
+                          },
+                          "width": 100
+                        },
+                        "small": {
+                          "path": {
+                            "$concat": [
+                              "$$hero.serverPath",
+                              "?w=640"
+                            ]
+                          },
+                          "width": 640
+                        },
+                        "medium": {
+                          "path": {
+                            "$concat": [
+                              "$$hero.serverPath",
+                              "?w=960"
+                            ]
+                          },
+                          "width": 960
+                        },
+                        "large": {
+                          "path": {
+                            "$concat": [
+                              "$$hero.serverPath",
+                              "?w=1024"
+                            ]
+                          },
+                          "width": 1024
+                        }
+                      }
+                    }
+                  }
+                },
+                0
+              ]
+            },
+            "images": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$multimedia",
+                    "as": "mm",
+                    "cond": {
+                      "$eq": [
+                        "$$mm.attributeIdMultimediaContent",
+                        "IMAGE"
+                      ]
+                    }
+                  }
+                },
+                "as": "hero",
+                "in": {
+                  "id": "$$hero.id",
+                  "path": "$$hero.serverPath",
+                  "dimension": "$$hero.attributeIdSizeOrientation",
+                  "orientation": {
+                    "$switch": {
+                      "branches": [
+                        {
+                          "case": {
+                            "$in": [
+                              "$$hero.attributeIdSizeOrientation",
+                              [
+                                "4X3",
+                                "16X9"
+                              ]
+                            ]
+                          },
+                          "then": "LANDSCAPE"
+                        }
+                      ],
+                      "default": ""
+                    }
+                  },
+                  "width": "$$hero.width",
+                  "height": "$$hero.height",
+                  "alt": "$$hero.altText",
+                  "caption": "$$hero.caption",
+                  "author": "$$hero.photographer",
+                  "copyright": "$$hero.copyright",
+                  "atdw_sq_number": "$$hero.sequenceNumber",
+                  "sizes": {
+                    "thumb": {
+                      "path": {
+                        "$concat": [
+                          "$$hero.serverPath",
+                          "?w=100"
+                        ]
+                      },
+                      "width": 100
+                    },
+                    "small": {
+                      "path": {
+                        "$concat": [
+                          "$$hero.serverPath",
+                          "?w=640"
+                        ]
+                      },
+                      "width": 640
+                    },
+                    "medium": {
+                      "path": {
+                        "$concat": [
+                          "$$hero.serverPath",
+                          "?w=960"
+                        ]
+                      },
+                      "width": 960
+                    },
+                    "large": {
+                      "path": {
+                        "$concat": [
+                          "$$hero.serverPath",
+                          "?w=1024"
+                        ]
+                      },
+                      "width": 1024
+                    }
+                  }
+                }
+              }
+            },
+            "awards": {
+              "$map": {
+                "input": "$productAwards",
+                "as": "pa",
+                "in": {
+                  "name": "$$pa.awardsText",
+                  "year": "$$pa.awardYear"
+                }
+              }
+            },
+            "address.PHYSICAL": {
+              "$arrayElemAt": [
+                {
+                  "$map": {
+                    "input": {
+                      "$filter": {
+                        "input": "$addresses",
+                        "as": "addy",
+                        "cond": {
+                          "$eq": [
+                            "$$addy.attributeIdAddress",
+                            "PHYSICAL"
+                          ]
+                        }
+                      }
+                    },
+                    "as": "addy",
+                    "in": {
+                      "street_address": {
+                        "$concat": [
+                          "$$addy.addressLine1",
+                          " ",
+                          {
+                            "$ifNull": [
+                              "$$addy.addressLine2",
+                              ""
+                            ]
+                          },
+                          " ",
+                          {
+                            "$ifNull": [
+                              "$$addy.addressLine3",
+                              ""
+                            ]
+                          }
+                        ]
+                      },
+                      "post_code": "$$addy.addressPostalCode",
+                      "locality": {
+                        "$ifNull": [
+                          "$$addy.suburb",
+                          "$$addy.cityName"
+                        ]
+                      },
+                      "area": "$$addy.areaName",
+                      "state": "$$addy.stateName",
+                      "state_code": {
+                        "$switch": {
+                          "branches": [
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "Australian Capital Territory"
+                                ]
+                              },
+                              "then": "ACT"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "New South Wales"
+                                ]
+                              },
+                              "then": "NSW"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "Northern Territory"
+                                ]
+                              },
+                              "then": "NT"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "Queensland"
+                                ]
+                              },
+                              "then": "QLD"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "South Australia"
+                                ]
+                              },
+                              "then": "SA"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "Victoria"
+                                ]
+                              },
+                              "then": "VIC"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stataName",
+                                  "Tasmania"
+                                ]
+                              },
+                              "then": "TAS"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stataName",
+                                  "Western Australia"
+                                ]
+                              },
+                              "then": "WA"
+                            }
+                          ],
+                          "default": ""
+                        }
+                      },
+                      "country": {
+                        "$ifNull": [
+                          "$$addy.countryName",
+                          "Australia"
+                        ]
+                      },
+                      "geocode": {
+                        "lat": "$$addy.geocodeGdaLatitude",
+                        "lng": "$$addy.geocodeGdaLongitude"
+                      },
+                      "loc": [
+                        "$$addy.geocodeGdaLongitude",
+                        "$$addy.geocodeGdaLatitude"
+                      ]
+                    }
+                  }
+                },
+                0
+              ]
+            },
+            "address.POSTAL": {
+              "$arrayElemAt": [
+                {
+                  "$map": {
+                    "input": {
+                      "$filter": {
+                        "input": "$addresses",
+                        "as": "addy",
+                        "cond": {
+                          "$eq": [
+                            "$$addy.attributeIdAddress",
+                            "POSTAL"
+                          ]
+                        }
+                      }
+                    },
+                    "as": "addy",
+                    "in": {
+                      "street_address": {
+                        "$concat": [
+                          "$$addy.addressLine1",
+                          " ",
+                          {
+                            "$ifNull": [
+                              "$$addy.addressLine2",
+                              ""
+                            ]
+                          },
+                          " ",
+                          {
+                            "$ifNull": [
+                              "$$addy.addressLine3",
+                              ""
+                            ]
+                          }
+                        ]
+                      },
+                      "post_code": "$$addy.addressPostalCode",
+                      "locality": {
+                        "$ifNull": [
+                          "$$addy.suburb",
+                          "$$addy.cityName"
+                        ]
+                      },
+                      "area": "$$addy.areaName",
+                      "state": "$$addy.stateName",
+                      "state_code": {
+                        "$switch": {
+                          "branches": [
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "Australian Capital Territory"
+                                ]
+                              },
+                              "then": "ACT"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "New South Wales"
+                                ]
+                              },
+                              "then": "NSW"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "Northern Territory"
+                                ]
+                              },
+                              "then": "NT"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "Queensland"
+                                ]
+                              },
+                              "then": "QLD"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "South Australia"
+                                ]
+                              },
+                              "then": "SA"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stateName",
+                                  "Victoria"
+                                ]
+                              },
+                              "then": "VIC"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stataName",
+                                  "Tasmania"
+                                ]
+                              },
+                              "then": "TAS"
+                            },
+                            {
+                              "case": {
+                                "$eq": [
+                                  "$$addy.stataName",
+                                  "Western Australia"
+                                ]
+                              },
+                              "then": "WA"
+                            }
+                          ],
+                          "default": ""
+                        }
+                      },
+                      "country": {
+                        "$ifNull": [
+                          "$$addy.countryName",
+                          "Australia"
+                        ]
+                      }
+                    }
+                  }
+                },
+                0
+              ]
+            },
+            "subtypes": {
+              "$map": {
+                "input": "$verticalClassifications",
+                "as": "pt",
+                "in": {
+                  "type": "$$pt.productTypeId",
+                  "description": "$$pt.productTypeDescription"
+                }
+              }
+            },
+            "admin_data": {
+              "owning_org": "$owningOrganisationId",
+              "contributing_org": "$contributingOrganisationId",
+              "update_date": "$productupdateDate",
+              "atdw_status": "$attributeIdAtdwStatus",
+              "expiry_date": "$atdwExpiryDate",
+              "valid_dates": {
+                "from": "$validityDateFrom",
+                "to": "$validityDateTo"
+              }
+            },
+            "linked_services": {
+              "$map": {
+                "input": "$externalSystems",
+                "in": {
+                  "id": "$$this.externalSystemCode",
+                  "code": "$$this.externalSystemCode",
+                  "value": "$$this.externalSystemText"
+                }
+              }
+            },
+            "social": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$externalSystems",
+                    "cond": {
+                      "$in": [
+                        "$$this.externalSystemCode",
+                        [
+                          "FACEBOOK",
+                          "INSTAGRAM",
+                          "TWITTER",
+                          "YOUTUBE",
+                          "PINTEREST",
+                          "GOOGLEPLUS",
+                          "VIMEO"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "in": {
+                  "type": "$$this.externalSystemCode",
+                  "name": "$$this.externalSystemCode",
+                  "address": "$$this.externalSystemText"
+                }
+              }
+            },
+            "_access": {
+              "groups": [
+                "ATDW",
+                "ATAP",
+                "SUPERADMIN"
+              ],
+              "editors": [
+                "ATAP",
+                "SUPERADMIN"
+              ],
+              "owners": [
+                "SUPERADMIN"
+              ]
+            },
+            "dates": {
+              "$map": {
+                "input": "$eventFrequency",
+                "in": {
+                  "start_time": {
+                    "$concat": [
+                      "$$this.frequencyStartDate",
+                      "T",
+                      "$$this.frequencyStartTime"
+                    ]
+                  },
+                  "end_time": {
+                    "$concat": [
+                      "$$this.frequencyEndDate",
+                      "T",
+                      "$$this.frequencyEndTime"
+                    ]
+                  }
+                }
+              }
+            },
+            "geo_location": {
+              "$arrayElemAt": [
+                {
+                  "$map": {
+                    "input": {
+                      "$filter": {
+                        "input": "$addresses",
+                        "cond": {
+                          "$eq": [
+                            "$$this.attributeIdAddress",
+                            "PHYSICAL"
+                          ]
+                        }
+                      }
+                    },
+                    "as": "addy",
+                    "in": {
+                      "type": "Point",
+                      "coordinates": [
+                        {
+                          "$convert": {
+                            "input": "$$addy.geocodeGdaLongitude",
+                            "to": "double",
+                            "onError": 0.0,
+                            "onNull": 0.0
+                          }
+                        },
+                        {
+                          "$convert": {
+                            "input": "$$addy.geocodeGdaLatitude",
+                            "to": "double",
+                            "onError": 0.0,
+                            "onNull": 0.0
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                0
+              ]
+            },
+            "accessibility": {
+              "$map": {
+                "input": "$accesibilityAttributes",
+                "in": {
+                  "type_id": "$$this.attributeTypeId",
+                  "type": "$$this.attributeTypeIdDescription",
+                  "id": "$$this.attributeSubType1Id",
+                  "description": "$$this.attributeSubType1IdDescription"
+                }
+              }
+            },
+            "localities": [
+              {
+                "$ifNull": [
+                  "$suburbName",
+                  "$cityName"
+                ]
+              },
+              "$cityName"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "dest": {
+    "type": "MONGO",
+    "connection": {
+      "server": "localhost",
+      "port": 27017,
+      "database": "ATAPProd"
+    },
+    "query": {
+      "collection": "estates",
+      "find": {
+        "id": "{id}"
+      },
+      "update": {
+        "$set": {
+          "id": "_$id",
+          "status": "_$status",
+          "category_code": "_$category_code",
+          "category": "_$category",
+          "name": "_$name",
+          "alternate_names": "_$alternate_names",
+          "contributor": "_$contributor",
+          "short_description": "_$short_description",
+          "description": "_$description",
+          "abn": "_$abn",
+          "suburb": "_$suburb",
+          "city": "_$city",
+          "locality": "_$locality",
+          "area": "_$area",
+          "state": "_$state",
+          "state_code": "_$state_code",
+          "country": "_$country",
+          "post_code": "_$post_code",
+          "attributes": "_$attributes",
+          "accreditations": "_$accreditations",
+          "facilities": "_$facilities",
+          "tags": "_$tags",
+          "memberships": "_$memberships",
+          "tourismorgs": "_$tourismorgs",
+          "phones": "_$phones",
+          "emails": "_$emails",
+          "urls": "_$urls",
+          "hero_image": "_$hero_image",
+          "images": "_$images",
+          "awards": "_$awards",
+          "addresses": "_$address",
+          "subtypes": "_$subtypes",
+          "social": "_$social",
+          "_access": "_$_access",
+          "geo_location": "_$geo_location",
+          "new_schema": true
+        },
+        "$addToSet": {
+          "dates": {
+            "$each": "_$dates"
+          },
+          "atap_accreditations": {
+            "$each": "_$atap_accreditations"
+          },
+          "localities": {
+            "$each": "_$localities"
+          }
+        },
+        "$unset": {
+          "_recent_sync": false
+        }
+      }
+    }
+  },
+  "logs": {
+    "process": {
+      "path": "/var/log/ATICProd/dataBridge/atdw-mapping",
+      "db_log": {
+        "server": "localhost",
+        "port": 27017,
+        "database": "ATAPProd",
+        "collection": "_data_import"
+      }
+    },
+    "error": {
+      "path": "/var/log/ATICProd/dataBridge/atdw-mapping-error",
+      "db_log": {
+        "server": "localhost",
+        "port": 27017,
+        "database": "ATAPProd",
+        "collection": "_data_import"
+      }
+    }
+  }
+}

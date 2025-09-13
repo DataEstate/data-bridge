@@ -1,0 +1,110 @@
+{
+  "source": {
+    "type": "MONGO",
+    "connection": {
+      "server": "localhost",
+      "port": 27017,
+      "database": "ATAPProd"
+    },
+    "query": {
+      "collection": "_data_import",
+      "aggregate": [
+        {
+          "$match": {
+            "productId": "_$pid"
+          }
+        },
+        {
+          "$project": {
+            "_id": false,
+            "id": "$productId",
+            "regions": {
+              "$arrayElemAt": [
+                {
+                  "$map": {
+                    "input": {
+                      "$filter": {
+                        "input": "$addresses",
+                        "as": "addy",
+                        "cond": {
+                          "$eq": [
+                            "$$addy.attributeIdAddress",
+                            "PHYSICAL"
+                          ]
+                        }
+                      }
+                    },
+                    "as": "addy",
+                    "in": {
+                      "regions": {
+                        "$map": {
+                          "input": "$$addy.productAddressDomesticRegionRelationship",
+                          "as": "re",
+                          "in": {
+                            "name": "$$re.domesticRegionName",
+                            "code": "$$re.domesticRegionCode"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                0
+              ]
+            }
+          }
+        },
+        {
+          "$project": {
+            "id": 1,
+            "address_regions": "$regions.regions"
+          }
+        }
+      ]
+    }
+  },
+  "dest": {
+    "type": "MONGO",
+    "connection": {
+      "server": "localhost",
+      "port": 27017,
+      "database": "ATAPProd"
+    },
+    "query": {
+      "collection": "estates",
+      "find": {
+        "id": "{id}"
+      },
+      "update": {
+        "$addToSet": {
+          "addresses.PHYSICAL.regions": {
+            "$each": "_$address_regions"
+          },
+          "regions": {
+            "$each": "_$address_regions"
+          }
+        }
+      }
+    }
+  },
+  "logs": {
+    "process": {
+      "path": "/var/log/ATICProd/dataBridge/atdw-mapping",
+      "db_log": {
+        "server": "localhost",
+        "port": 27017,
+        "database": "ATAPProd",
+        "collection": "_data_import"
+      }
+    },
+    "error": {
+      "path": "/var/log/ATICProd/dataBridge/atdw-mapping-error",
+      "db_log": {
+        "server": "localhost",
+        "port": 27017,
+        "database": "ATAPProd",
+        "collection": "_data_import"
+      }
+    }
+  }
+}
