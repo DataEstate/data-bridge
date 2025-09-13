@@ -7,7 +7,7 @@
       "database": "ATAPProd"
     },
     "query": {
-      "collection": "_data_import", 
+      "collection": "_data_import",
       "aggregate": [
         {
           "$match": {
@@ -24,12 +24,13 @@
             "id": "$productId",
             "tours": {
               "$map": {
-                "input": "$services", 
+                "input": "$services",
                 "in": {
                   "id": "$$this.serviceId",
-                  "name": "$$this.serviceName", 
+                  "productNumber": "$$this.productNumber",
+                  "name": "$$this.serviceName",
                   "description": "$$this.serviceDescription",
-                  "code": "$$this.productNumber", 
+                  "code": "$$this.productNumber",
                   "hero_image": {
                     "$arrayElemAt": [
                       {
@@ -126,7 +127,7 @@
                       "input": {
                         "$filter": {
                           "input": "$$this.multimedia",
-                          "as": "svcmm", 
+                          "as": "svcmm",
                           "cond": {
                             "$eq": [
                               "$$svcmm.attributeIdMultimediaContent",
@@ -134,7 +135,7 @@
                             ]
                           }
                         }
-                      }, 
+                      },
                       "as": "hero",
                       "in": {
                         "id": "$$hero.id",
@@ -209,18 +210,18 @@
                   },
                   "subtypes": {
                     "$map": {
-                      "input": "$$this.verticalClassifications", 
+                      "input": "$$this.verticalClassifications",
                       "as": "subtype",
                       "in": {
                         "type": "$$subtype.productTypeId",
                         "description": "$$subtype.productTypeDescription"
                       }
                     }
-                  }, 
+                  },
                   "attributes": {
                     "$map": {
                       "input": "$$this.attributes",
-                      "as": "attribute", 
+                      "as": "attribute",
                       "in": {
                         "type_id": "$$attribute.attributeTypeId",
                         "type": "$$attribute.attributeTypeDescription",
@@ -267,19 +268,19 @@
               }
             },
             "rate": {
-              "from": "$rateFrom", 
+              "from": "$rateFrom",
               "to": "$rateTo"
             },
             "info": {
               "rates": {
                 "$map": {
-                  "input": "$rates", 
+                  "input": "$rates",
                   "in": {
                     "from": "$$this.priceFrom",
-                    "to": "$$this.priceTo", 
+                    "to": "$$this.priceTo",
                     "free": "$$this.free",
-                    "comment": "$$this.rateComment", 
-                    "rate_type":"$$this.ratesType"
+                    "comment": "$$this.rateComment",
+                    "rate_type": "$$this.ratesType"
                   }
                 }
               }
@@ -290,16 +291,16 @@
     }
   },
   "dest": {
-    "type": "MONGO", 
+    "type": "MONGO",
     "connection": {
-      "server": "localhost", 
-      "port": 27017, 
+      "server": "localhost",
+      "port": 27017,
       "database": "ATAPProd"
     },
     "query": {
-      "collection": "estates", 
+      "collection": "estates",
       "find": {
-        "id": "{id}", 
+        "id": "{id}",
         "contributor": "ATDW"
       },
       "update": {
@@ -315,7 +316,7 @@
       }
     }
   },
-"logs": {
+  "logs": {
     "process": {
       "path": "/var/log/ATICProd/dataBridge/atdw-mapping",
       "db_log": {
@@ -336,4 +337,3 @@
     }
   }
 }
-

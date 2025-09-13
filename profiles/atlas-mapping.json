@@ -23,6 +23,7 @@
           "$project": {
             "_id": false,
             "id": "$productId",
+            "productNumber": "$$this.productNumber",
             "status": "$status",
             "category_code": "$productCategoryId",
             "category": {

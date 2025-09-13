@@ -24,6 +24,7 @@
                 "input": "$services",
                 "in": {
                   "id": "$$this.serviceId",
+                  "productNumber": "$$this.productNumber",
                   "name": "$$this.serviceName",
                   "description": "$$this.serviceDescription",
                   "code": "$$this.productNumber",
